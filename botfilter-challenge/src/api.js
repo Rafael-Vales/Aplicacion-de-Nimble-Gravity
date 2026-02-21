@@ -6,6 +6,37 @@ const BASE_URL = (import.meta.env.VITE_API_BASE_URL || API_FALLBACK_BASE_URL).re
   ""
 );
 
+function getErrorMessage(data, status) {
+  if (!data) {
+    return `Request failed (${status})`;
+  }
+
+  if (typeof data === "string") {
+    return data;
+  }
+
+  if (data.message || data.error || data.details || data.title) {
+    return data.message || data.error || data.details || data.title;
+  }
+
+  if (Array.isArray(data.errors) && data.errors.length > 0) {
+    return data.errors.join(" | ");
+  }
+
+  if (data.errors && typeof data.errors === "object") {
+    const nestedErrors = Object.values(data.errors)
+      .flat()
+      .map((value) => String(value))
+      .filter(Boolean);
+
+    if (nestedErrors.length > 0) {
+      return nestedErrors.join(" | ");
+    }
+  }
+
+  return `Request failed (${status})`;
+}
+
 async function request(path, options = {}) {
   let res;
   try {
@@ -29,10 +60,7 @@ async function request(path, options = {}) {
   }
 
   if (!res.ok) {
-    const message =
-      (data && (data.message || data.error || data.details)) ||
-      (typeof data === "string" ? data : null) ||
-      `Request failed (${res.status})`;
+    const message = getErrorMessage(data, res.status);
     const err = new Error(message);
     err.status = res.status;
     err.data = data;

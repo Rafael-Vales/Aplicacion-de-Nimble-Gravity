@@ -88,7 +88,9 @@ export default function App() {
     }
   }
 
-  const candidateReady = Boolean(candidate?.uuid && candidate?.candidateId);
+  const candidateReady = Boolean(
+    candidate?.uuid && candidate?.candidateId && candidate?.applicationId
+  );
 
   return (
     <div className="container">
@@ -156,7 +158,8 @@ export default function App() {
           </div>
         ) : (
           <div className="hint">
-            Cargá tu email para obtener `uuid` y `candidateId` antes de enviar.
+            Cargá tu email para obtener `uuid`, `candidateId` y `applicationId`
+            antes de enviar.
           </div>
         )}
       </section>

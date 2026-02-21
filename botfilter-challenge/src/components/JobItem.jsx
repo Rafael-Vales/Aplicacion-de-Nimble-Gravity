@@ -1,28 +1,64 @@
 import { useMemo, useState } from "react";
 import { applyToJob } from "../api";
 
-const GITHUB_REPO_REGEX =
-  /^https?:\/\/(www\.)?github\.com\/[^/.\s][^/\s]*\/[^/.\s][^/\s]*\/?$/i;
+function normalizeGitHubRepoUrl(rawUrl) {
+  const trimmed = rawUrl.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  try {
+    const parsed = new URL(trimmed);
+    const isHttp = parsed.protocol === "http:" || parsed.protocol === "https:";
+    const isGitHubHost = /^(www\.)?github\.com$/i.test(parsed.hostname);
+
+    if (!isHttp || !isGitHubHost) {
+      return null;
+    }
+
+    const segments = parsed.pathname.split("/").filter(Boolean);
+    if (segments.length < 2) {
+      return null;
+    }
+
+    const owner = segments[0];
+    const repo = segments[1].replace(/\.git$/i, "");
+    if (!owner || !repo) {
+      return null;
+    }
+
+    return `https://github.com/${owner}/${repo}`;
+  } catch {
+    return null;
+  }
+}
 
 export default function JobItem({ job, candidate, candidateReady }) {
   const [repoUrl, setRepoUrl] = useState("");
   const [status, setStatus] = useState({ state: "idle", message: "" });
 
-  const normalizedRepoUrl = useMemo(() => repoUrl.trim(), [repoUrl]);
-  const repoUrlIsValid = useMemo(
-    () => GITHUB_REPO_REGEX.test(normalizedRepoUrl),
-    [normalizedRepoUrl]
-  );
+  const normalizedRepoUrl = useMemo(() => normalizeGitHubRepoUrl(repoUrl), [repoUrl]);
+  const repoUrlIsValid = Boolean(normalizedRepoUrl);
+  const hasRepoInput = Boolean(repoUrl.trim());
 
   const canSubmit = useMemo(() => {
-    return Boolean(candidateReady && normalizedRepoUrl && repoUrlIsValid);
-  }, [candidateReady, normalizedRepoUrl, repoUrlIsValid]);
+    return Boolean(candidateReady && repoUrlIsValid);
+  }, [candidateReady, repoUrlIsValid]);
 
   async function handleSubmit() {
     if (!candidateReady) {
       setStatus({
         state: "error",
         message: "Primero cargá los datos de candidato con tu email.",
+      });
+      return;
+    }
+
+    if (!candidate?.uuid || !candidate?.candidateId || !candidate?.applicationId) {
+      setStatus({
+        state: "error",
+        message:
+          "No se encontraron credenciales completas (uuid/candidateId/applicationId). Recargá el email.",
       });
       return;
     }
@@ -39,6 +75,7 @@ export default function JobItem({ job, candidate, candidateReady }) {
     try {
       const body = {
         uuid: candidate.uuid,
+        applicationId: candidate.applicationId,
         jobId: job.id,
         candidateId: candidate.candidateId,
         repoUrl: normalizedRepoUrl,
@@ -87,11 +124,14 @@ export default function JobItem({ job, candidate, candidateReady }) {
         <div className="hint">Primero cargá tu candidato con el email (arriba).</div>
       ) : null}
 
-      {normalizedRepoUrl && !repoUrlIsValid ? (
+      {hasRepoInput && !repoUrlIsValid ? (
         <div className="hint warningHint">
           Usá una URL de repo GitHub válida, por ejemplo:
           https://github.com/tu-usuario/tu-repo
         </div>
+      ) : null}
+      {repoUrlIsValid && repoUrl.trim() !== normalizedRepoUrl ? (
+        <div className="hint">Se enviará: {normalizedRepoUrl}</div>
       ) : null}
 
       {status.state === "error" ? (
